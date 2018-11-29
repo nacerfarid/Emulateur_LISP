@@ -1,0 +1,139 @@
+options {
+DEBUG_PARSER=false;
+STATIC=false;
+}
+PARSER_BEGIN(Reader)
+package grammaire;
+import jus.aoo.lisp.*;
+import java.io.*;
+
+
+public class Reader {
+/** le support de lecture */
+protected static java.io.Reader in = new BufferedReader(new InputStreamReader(System.in));
+//protected static Reader lereader = new Reader(in);
+/** lecture d'une S-EXPR au terminal
+* @return Sexpr : la Sexpr construite.
+* @throws LispException une erreur de syntaxe
+*/
+public static void main(String[] args) {
+  while(true) { 
+  System.out.println(Reader.read().eval());
+}
+}
+public static SEXPR read() throws LispException{
+  Reader lereader = new Reader(in);
+    try {
+            return lereader.SEXPRESSION();
+        } catch (ParseException e) {
+            throw new LispException();
+        }  
+  }
+/** lecture d'une S-EXPR à partir de la chaîne
+* @param s : la chaîne
+* @return Sexpr : la Sexpr construite.
+* @throws LispException une erreur de syntaxe
+*/
+public static SEXPR read(String s) throws LispException{
+      java.io.Reader sauv = in;
+      in = new StringReader(s);
+      SEXPR r = read();
+      in = sauv;
+      return r;
+   }
+/** évaluation de la séquence S-EXPRs à partir du fichier s
+* @param s : le nom du fichier
+* @return Sexpr : symbole du nom du fichier.
+* @throws LispException une erreur de lecture
+*/
+
+public static SEXPR importe(String s) throws LispException{
+  File f = new File(s);
+  //InputStream inputStr = new FileInputStream(f);
+  java.io.Reader sauv = in;
+  BufferedReader br;
+  String line;
+  SEXPR r = null;
+try {
+    br = new BufferedReader(new FileReader(f));
+    while ((line = br.readLine()) != null) {
+              in = br;
+           r = read(line);
+        }
+} catch (Exception e1) {
+    // TODO Auto-generated catch block
+    e1.printStackTrace();
+}
+return r;
+  }
+
+private SEXPR quote(SEXPR s) {
+
+return new SCONS(Symbole.newSymbole("quote"),s);
+}
+
+private SEXPR cons(SEXPR s1,SEXPR s2) {
+
+return new SCONS(s1,s2);
+}
+
+}
+PARSER_END(Reader)
+// les caractères ignorés
+SKIP :
+{
+" " | "\t" | "\r"| "\n"
+// attention élimine la notion de fin de ligne
+| "\u0000" | "\u0001" | "\u0002" | "\u0003" | "\u0004" | "\u0005" | "\u0006" | "\u0007"
+| "\u0008" | "\u000B" | "\u000C" | "\u000E" | "\u000F" | "\u0010" | "\u0011" | "\u0012"
+| "\u0013" | "\u0014" | "\u0015" | "\u0016" | "\u0017" | "\u0018" | "\u0019" | "\u001A"
+| "\u001B" | "\u001C" | "\u001D" | "\u001E" | "\u001F" | "\u007F"
+}
+MORE :
+{
+"//" : IN_SL_COMMENT
+| "/*" : IN_ML_COMMENT
+}
+<IN_SL_COMMENT> SPECIAL_TOKEN :{<SL_COMMENT: "\n" | "\r" | "\r\n"> : DEFAULT}
+<IN_ML_COMMENT> SPECIAL_TOKEN :{<ML_COMMENT: "*/" > : DEFAULT}
+<IN_SL_COMMENT,IN_ML_COMMENT> SKIP :{< ~[] >}// les lexèmes du langage
+
+TOKEN :{
+  < #LETTER:["a"-"z"] >
+| < #DIGIT:["0"-"9"] >
+| < POINT: "." >
+| < QUOTE: "'" >
+| < LPAREN: "(" >
+| < RPAREN: ")" >
+| < ID : (<LETTER >| < DIGIT >)+>
+}
+
+SEXPR SEXPRESSION() : {SEXPR s1;}
+{
+s1=SEXPR(){return s1; }
+}
+
+void SEXPRESSIONS() : {SEXPR s1;}
+{
+(s1=SEXPRESSION(){})* <EOF>
+}
+
+SEXPR SEXPR() : {SEXPR s1;}
+{
+    s1=ATOME(){return s1;}
+|     < LPAREN > s1=LIST() <RPAREN > { return s1;}
+|     < QUOTE > s1=SEXPR() { return quote(s1); }
+}
+SEXPR LIST() : {SEXPR s1,s2;}
+{
+    s1=SEXPR() ( < POINT > s2=SEXPR()| s2=LIST()) {return cons(s1,s2); }
+| { return NIL.getNIL();}
+}
+SEXPR ATOME() : {SEXPR s1;}
+{
+    s1=SYMBOLE(){return s1;}
+}
+SEXPR SYMBOLE() : {Token s1;}
+{
+    s1 = < ID > { return Symbole.newSymbole(s1.image);}
+}
